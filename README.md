@@ -41,17 +41,24 @@ Windows from the same code** and needs no compiler or notarisation.
 
 ## Install
 
-1. Download and unzip a release, **or** clone this repo.
-2. Run `./install.sh` (copies `ContactSheet.lrplugin` into Lightroom's auto-load
-   `Modules` folder), **or** in Lightroom: *File > Plug-in Manager > Add* and point
-   it at the `ContactSheet.lrplugin` folder.
-3. Restart Lightroom if you used `install.sh`.
+1. Download `ContactSheet-<version>.lrplugin.zip` from the
+   [latest release](https://github.com/nielsfranke/contactsheet-lightroom/releases)
+   and unzip it, **or** clone this repo.
+   - On macOS, a downloaded plugin may be quarantined; if Lightroom won't load it, run
+     `xattr -dr com.apple.quarantine ContactSheet.lrplugin`.
+2. In Lightroom: *File > Plug-in Manager > Add* and point it at the
+   `ContactSheet.lrplugin` folder — **or** run `./install.sh` (copies it into
+   Lightroom's auto-load `Modules` folder) and restart Lightroom.
+
+Maintainers: `./release.sh` packages the current `Info.lua` version into
+`dist/ContactSheet-<version>.lrplugin.zip`.
 
 ## Setup
 
 1. **In ContactSheet** (admin): *Settings → API tokens → Create token*. Grant
-   `galleries:read`, `galleries:write` and `images:write`, and copy the `cs_pat_…`
-   secret (shown once).
+   `galleries:read`, `galleries:write` and `images:write` (add `images:read` if you
+   want to read client picks back into Lightroom), and copy the `cs_pat_…` secret
+   (shown once).
 2. **In Lightroom**: select photos → *File > Export* → choose **ContactSheet** as the
    *Export To* target (top of the dialog). In the **ContactSheet** panel:
    - **Instance URL** — e.g. `https://photos.example.com`.
@@ -86,6 +93,7 @@ publish service.
 | `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload, delete image) |
 | `ContactSheet.lrplugin/JSON.lua` | Minimal JSON encode/decode (the SDK ships none) |
 | `install.sh` | Copy into Lightroom's auto-load `Modules` folder |
+| `release.sh` | Package `ContactSheet.lrplugin` into `dist/ContactSheet-<version>.lrplugin.zip` |
 
 ## Roadmap
 
