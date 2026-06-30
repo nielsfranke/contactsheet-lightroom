@@ -15,14 +15,16 @@ Windows from the same code** and needs no compiler or notarisation.
 
 ## Features
 
-- **Export to a gallery** from File > Export (or as a Publish Service), with the full
-  Lightroom render pipeline (format, size, sharpening, metadata, watermark) under
-  your control.
-- **Choose or create a gallery** in one place — *Choose or create gallery…* opens a
-  searchable picker: a hierarchy of gallery names (sub-galleries indented with ▸/▾
-  markers), a live **name filter**, **Expand all / Collapse all**, and **create a
-  gallery or sub-gallery** (name + **Showcase**/**Review** mode) without leaving the
-  dialog.
+- **Export to a gallery** from File > Export, with the full Lightroom render pipeline
+  (format, size, sharpening, metadata, watermark) under your control.
+- **Publish Service** — ContactSheet appears under *Publish Services* too. Each
+  published collection maps to a gallery (auto-created, named after the collection);
+  re-publishing an edited photo replaces it on the server (no duplicates), and
+  removing photos from the collection deletes them from ContactSheet.
+- **Choose or create a gallery** (for Export) — *Choose or create gallery…* opens a
+  searchable picker: gallery names in a hierarchy (sub-galleries indented), a live
+  **name filter**, and **create a gallery or sub-gallery** (name + **Showcase**/
+  **Review** mode) without leaving the dialog.
 - Upload progress, cancellation, and a clear summary of any photos that failed.
 
 ## Requirements
@@ -71,20 +73,21 @@ publish service.
 | Path | Purpose |
 |---|---|
 | `ContactSheet.lrplugin/Info.lua` | Plugin manifest (registers the Export Service Provider) |
-| `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` upload loop |
+| `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` (export + publish upload loop) |
+| `ContactSheet.lrplugin/CSPublishSupport.lua` | Publish Service callbacks (collection↔gallery, republish, delete) |
 | `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, destination + open picker) |
-| `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable picker/creator — filtered list, cover preview, create gallery/sub-gallery |
-| `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload) |
+| `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable picker/creator — filtered name list, create gallery/sub-gallery |
+| `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload, delete image) |
 | `ContactSheet.lrplugin/JSON.lua` | Minimal JSON encode/decode (the SDK ships none) |
 | `install.sh` | Copy into Lightroom's auto-load `Modules` folder |
 
 ## Roadmap
 
-- **Publish Service semantics** — persistent published collections, re-publish on
-  edit, deletion sync (the Lightroom SDK's incremental-publish hooks).
 - **Read client picks back** — pull ContactSheet color flags / ratings and apply them
   as Lightroom color labels / star ratings (needs a small read-scope addition on the
   server).
+- **Publish polish** — map a published collection to an *existing* gallery (not only
+  auto-create), and a per-collection settings panel.
 - Per-gallery sub-gallery targeting; multiple destinations at once.
 
 ## License

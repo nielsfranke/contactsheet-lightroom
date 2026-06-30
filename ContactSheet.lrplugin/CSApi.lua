@@ -80,7 +80,10 @@ function CSApi.createGallery(instanceUrl, token, name, mode, parentId)
   return parsed
 end
 
--- Uploads one rendered file to a gallery. Returns true or false,err.
+-- Uploads one rendered file to a gallery. Returns the created image's id (string)
+-- on success, or nil,err. The id lets the publish service record the published
+-- photo (for re-publish / deletion). The upload endpoint returns a list of
+-- UploadResponse — we take the first entry's id.
 function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
   local url = normalizeBase(instanceUrl) .. '/api/galleries/' .. galleryId .. '/images'
   local fileName = LrPathUtils.leafName(filePath)
@@ -95,7 +98,24 @@ function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
   }
   local body, respHeaders = LrHttp.postMultipart(url, content, authHeaders(token))
   local status = statusOf(respHeaders)
-  if status == 201 or status == 200 then return true end
+  if status ~= 201 and status ~= 200 then return nil, httpErrorMessage(status) end
+  local ok, parsed = pcall(JSON.decode, body)
+  if ok and type(parsed) == 'table' and parsed[1] and parsed[1].id then
+    return parsed[1].id
+  end
+  -- Uploaded fine but the id was unreadable — treat as success without an id so the
+  -- export path (which ignores the id) still works; publish republish just can't dedupe.
+  return true
+end
+
+-- Deletes an image by id (needs an images:write token). Returns true, or false,err.
+-- Used by the publish service to replace an edited photo / remove on un-publish.
+function CSApi.deleteImage(instanceUrl, token, imageId)
+  local url = normalizeBase(instanceUrl) .. '/api/images/' .. imageId
+  local body, respHeaders = LrHttp.post(url, '', authHeaders(token), 'DELETE')
+  local status = statusOf(respHeaders)
+  if status == 204 or status == 200 then return true end
+  if status == 404 then return true end -- already gone — fine for our purposes
   return false, httpErrorMessage(status)
 end
 
