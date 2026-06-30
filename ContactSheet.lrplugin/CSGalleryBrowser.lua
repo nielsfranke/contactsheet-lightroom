@@ -47,22 +47,32 @@ local function normalizeBase(url)
   return (url or ''):gsub('%s+', ''):gsub('/+$', '')
 end
 
--- Depth-first flatten of the nested gallery tree into an ordered list of
--- { gallery = g, depth = n } so sub-galleries read as a hierarchy. GET
--- /api/galleries returns roots with a nested `children` array (not a flat
--- parent_id list), so we recurse into `children`, sorting each level by name.
+-- Depth-first flatten of the nested gallery tree into an ordered list of rows
+-- { gallery, depth, ancestors = {id,…}, hasChildren } so the picker can render a
+-- collapsible hierarchy. GET /api/galleries returns roots with a nested `children`
+-- array (not a flat parent_id list), so we recurse into `children`, sorting each
+-- level by name. `ancestors` powers collapse (a row is shown only when every
+-- ancestor is expanded); `hasChildren` decides whether a row gets a disclosure.
 local function flatten(galleries)
   local out = {}
-  local function walk(list, depth)
+  local function walk(list, depth, ancestors)
     local level = {}
     for _, g in ipairs(list or {}) do level[#level + 1] = g end
     table.sort(level, function(a, b) return (a.name or '') < (b.name or '') end)
     for _, g in ipairs(level) do
-      out[#out + 1] = { gallery = g, depth = depth }
-      if type(g.children) == 'table' then walk(g.children, depth + 1) end
+      local kids = type(g.children) == 'table' and g.children or {}
+      out[#out + 1] = {
+        gallery = g, depth = depth, ancestors = ancestors, hasChildren = #kids > 0,
+      }
+      if #kids > 0 then
+        local childAnc = {}
+        for _, a in ipairs(ancestors) do childAnc[#childAnc + 1] = a end
+        childAnc[#childAnc + 1] = g.id
+        walk(kids, depth + 1, childAnc)
+      end
     end
   end
-  walk(galleries, 0)
+  walk(galleries, 0, {})
   return out
 end
 
@@ -151,6 +161,20 @@ function CSGalleryBrowser.browse(propertyTable)
     return q == '' or nameLower:find(q, 1, true) ~= nil
   end
 
+  -- Collapse state: set of expanded container ids (shared upvalue, toggled by the
+  -- disclosure buttons). A row is visible when its name matches the filter AND, when
+  -- not searching, every one of its ancestors is expanded. Searching reveals matches
+  -- regardless of collapse so the filter is never blocked by a collapsed parent.
+  local expanded = {}
+  local function rowVisible(filterValue, row)
+    if not matches(filterValue, (row.gallery.name or ''):lower()) then return false end
+    if (filterValue or '') ~= '' then return true end
+    for _, aid in ipairs(row.ancestors) do
+      if not expanded[aid] then return false end
+    end
+    return true
+  end
+
   -- Label for the "create as sub-gallery" checkbox, reflecting the selected parent.
   local function subLabel(id)
     local m = id and id ~= '' and metaById[id]
@@ -164,10 +188,21 @@ function CSGalleryBrowser.browse(propertyTable)
     local props = LrBinding.makePropertyTable(context)
     props.selected = propertyTable.cs_galleryId or '' -- radio value is a scalar id
     props.filter = ''
+    props.expandRev = 0 -- bumped on expand/collapse so row `visible` re-evaluates
     props.newName = ''
     props.newMode = 'presentation'
     props.asSub = false
     props.created = ''
+
+    -- Start collapsed, but reveal a preselected gallery by expanding its ancestors.
+    if props.selected ~= '' then
+      for _, row in ipairs(rows) do
+        if row.gallery.id == props.selected then
+          for _, aid in ipairs(row.ancestors) do expanded[aid] = true end
+          break
+        end
+      end
+    end
 
     -- Create a gallery (or sub-gallery of the selection). The new gallery becomes
     -- the selection; it can't appear as a new row (LR builds the grid once), so a
@@ -203,35 +238,59 @@ function CSGalleryBrowser.browse(propertyTable)
       end)
     end
 
-    -- One selectable row per gallery: square cover + name. Sub-galleries indent the
-    -- WHOLE row (cover included) so nesting reads as a step-in. Filtering hides
-    -- non-matching rows via a bound `visible` (the column reflows).
-    local listArgs = { spacing = f:control_spacing() }
+    -- One selectable row per gallery: an indent (by depth) + a disclosure/connector
+    -- marker + a square cover + the name. Containers get a ▸/▾ button that expands
+    -- /collapses their children; leaf sub-galleries get a └ connector. Filtering and
+    -- collapse both drive each row's bound `visible` (the column reflows).
+    local MARKER_W = 26
+    -- bind_to_object must be set here: bindings (filter/collapse `visible`, radio
+    -- `value`) do NOT inherit through the scrolled_view from the outer column, so
+    -- without this the rows render but none of their bindings fire. (Mirrors how the
+    -- SDK midiMapper sample sets bind_to_object on its scrolled rows.)
+    local listArgs = { spacing = f:control_spacing(), bind_to_object = props }
     for _, row in ipairs(rows) do
       local g = row.gallery
       local id = g.id
       local count = metaById[id].count
-      local suffix = count == 0 and '   ›' or ('   (%d)'):format(count)
-      local label = (g.name or '(untitled)') .. suffix
-      local nameLower = (g.name or ''):lower()
+      local label = (g.name or '(untitled)') .. (count > 0 and ('   (%d)'):format(count) or '')
 
       local thumb = coverById[id]
         and f:picture { value = coverById[id], frame_width = 1 }
-        or f:spacer { width = THUMB_PX, height = THUMB_PX } -- keep names aligned
+        or f:picture { value = _PLUGIN:resourceId('cover-placeholder.png') }
+
+      local marker
+      if row.hasChildren then
+        marker = f:push_button {
+          title = bind { key = 'expandRev', transform = function() return expanded[id] and '▾' or '▸' end },
+          action = function()
+            expanded[id] = not expanded[id]
+            props.expandRev = props.expandRev + 1
+          end,
+          width = MARKER_W,
+        }
+      elseif row.depth > 0 then
+        marker = f:static_text { title = '└', width = MARKER_W, alignment = 'center' }
+      else
+        marker = f:spacer { width = MARKER_W }
+      end
 
       local rowArgs = {
         spacing = f:label_spacing(),
-        visible = bind { key = 'filter', transform = function(v) return matches(v, nameLower) end },
+        visible = bind {
+          keys = { { key = 'filter' }, { key = 'expandRev' } },
+          operation = function(_, values, _) return rowVisible(values.filter, row) end,
+        },
       }
       if row.depth > 0 then
-        rowArgs[#rowArgs + 1] = f:spacer { width = row.depth * 26 } -- indent for hierarchy
+        rowArgs[#rowArgs + 1] = f:spacer { width = row.depth * 22 } -- indent for hierarchy
       end
+      rowArgs[#rowArgs + 1] = marker
       rowArgs[#rowArgs + 1] = thumb
       rowArgs[#rowArgs + 1] = f:radio_button {
         title = label,
         value = bind 'selected',
         checked_value = id,
-        width_in_chars = 30,
+        width_in_chars = 28,
       }
       listArgs[#listArgs + 1] = f:row(rowArgs)
     end
