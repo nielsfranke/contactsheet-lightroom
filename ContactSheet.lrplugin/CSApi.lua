@@ -108,6 +108,23 @@ function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
   return true
 end
 
+-- Reads client picks for a gallery (needs an images:read token). Returns a map
+-- imageId → { color_flag, rating, like_count, filename } (for the publish readback),
+-- or nil,err.
+function CSApi.getPicks(instanceUrl, token, galleryId)
+  local url = normalizeBase(instanceUrl) .. '/api/galleries/' .. galleryId .. '/images/picks'
+  local body, headers = LrHttp.get(url, authHeaders(token))
+  local status = statusOf(headers)
+  if status ~= 200 then return nil, httpErrorMessage(status) end
+  local ok, parsed = pcall(JSON.decode, body)
+  if not ok or type(parsed) ~= 'table' then return nil, 'Could not parse picks.' end
+  local byId = {}
+  for _, p in ipairs(parsed) do
+    if p.image_id then byId[p.image_id] = p end
+  end
+  return byId
+end
+
 -- Deletes an image by id (needs an images:write token). Returns true, or false,err.
 -- Used by the publish service to replace an edited photo / remove on un-publish.
 function CSApi.deleteImage(instanceUrl, token, imageId)

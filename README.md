@@ -25,6 +25,11 @@ Windows from the same code** and needs no compiler or notarisation.
   searchable picker: gallery names in a hierarchy (sub-galleries indented), a live
   **name filter**, and **create a gallery or sub-gallery** (name + **Showcase**/
   **Review** mode) without leaving the dialog.
+- **Read client picks back** — *Library > Plug-in Extras > Sync client picks from
+  ContactSheet* pulls each published photo's ContactSheet **color flag → Lightroom
+  color label** and **star rating → Lightroom rating** (matched by published photo).
+  Non-destructive: only sets where ContactSheet has a value. Needs a token with the
+  `images:read` scope.
 - Upload progress, cancellation, and a clear summary of any photos that failed.
 
 ## Requirements
@@ -75,6 +80,7 @@ publish service.
 | `ContactSheet.lrplugin/Info.lua` | Plugin manifest (registers the Export Service Provider) |
 | `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` (export + publish upload loop) |
 | `ContactSheet.lrplugin/CSPublishSupport.lua` | Publish Service callbacks (collection↔gallery, republish, delete) |
+| `ContactSheet.lrplugin/CSSyncPicks.lua` | Plug-in Extras action: read client picks (flags/ratings) into the catalog |
 | `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, destination + open picker) |
 | `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable picker/creator — filtered name list, create gallery/sub-gallery |
 | `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload, delete image) |
@@ -83,12 +89,10 @@ publish service.
 
 ## Roadmap
 
-- **Read client picks back** — pull ContactSheet color flags / ratings and apply them
-  as Lightroom color labels / star ratings (needs a small read-scope addition on the
-  server).
 - **Publish polish** — map a published collection to an *existing* gallery (not only
   auto-create), and a per-collection settings panel.
 - Per-gallery sub-gallery targeting; multiple destinations at once.
+- Windows test (same Lua, untested there).
 
 ## License
 

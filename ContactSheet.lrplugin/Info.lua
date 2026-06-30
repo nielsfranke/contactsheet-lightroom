@@ -22,5 +22,13 @@ return {
     file = 'CSExportServiceProvider.lua',
   },
 
-  VERSION = { major = 0, minor = 7, revision = 0, build = 0 },
+  -- Library > Plug-in Extras: read client picks (flags/ratings) back into the catalog.
+  LrLibraryMenuItems = {
+    {
+      title = 'Sync client picks from ContactSheet',
+      file = 'CSSyncPicks.lua',
+    },
+  },
+
+  VERSION = { major = 0, minor = 8, revision = 0, build = 0 },
 }
