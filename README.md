@@ -19,9 +19,11 @@ Windows from the same code** and needs no compiler or notarisation.
   Lightroom render pipeline (format, size, sharpening, metadata, watermark) under
   your control.
 - **Choose or create a gallery** in one place — *Choose or create gallery…* opens a
-  searchable, resizable picker: filter by name, browse the gallery hierarchy
-  (sub-galleries indented) with a cover preview, and **create a gallery or
-  sub-gallery** (name + **Showcase**/**Review** mode) without leaving the dialog.
+  searchable picker: each gallery shows a small **cover thumbnail** + name
+  (sub-galleries indented), filter by name, and **create a gallery or sub-gallery**
+  (name + **Showcase**/**Review** mode) without leaving the dialog. Cover thumbnails
+  come from the backend's `cover-thumb` endpoint (needs a ContactSheet new enough to
+  provide it; older servers just show names).
 - Upload progress, cancellation, and a clear summary of any photos that failed.
 
 ## Requirements
