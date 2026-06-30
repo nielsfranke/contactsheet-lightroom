@@ -19,7 +19,8 @@ Windows from the same code** and needs no compiler or notarisation.
   Lightroom render pipeline (format, size, sharpening, metadata, watermark) under
   your control.
 - **Pick a destination gallery** from a hierarchy-aware dropdown (sub-galleries are
-  indented).
+  indented), or **Browse with covers…** — a searchable, resizable picker (filter by
+  name) with a large cover preview of the selected gallery.
 - **Create a gallery on the fly** — tick *Create a new gallery*, type a name, choose
   the mode (**Showcase** or **Review**).
 - Upload progress, cancellation, and a clear summary of any photos that failed.
@@ -48,7 +49,8 @@ Windows from the same code** and needs no compiler or notarisation.
    *Export To* target (top of the dialog). In the **ContactSheet** panel:
    - **Instance URL** — e.g. `https://photos.example.com`.
    - **API token** — paste the `cs_pat_…`.
-   - Click **Load galleries**, pick a destination (or tick **Create a new gallery**).
+   - Click **Load galleries** for the dropdown, or **Browse with covers…** for a
+     thumbnail picker — pick a destination (or tick **Create a new gallery**).
 3. Set the usual **File Settings / Image Sizing** below, then **Export**.
 
 You can save this as an Export preset, or add it as a **Publish Service** for repeat
@@ -70,6 +72,7 @@ publish service.
 | `ContactSheet.lrplugin/Info.lua` | Plugin manifest (registers the Export Service Provider) |
 | `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` upload loop |
 | `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, gallery picker, create) |
+| `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable gallery picker — filtered list + lazy cover preview |
 | `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload) |
 | `ContactSheet.lrplugin/JSON.lua` | Minimal JSON encode/decode (the SDK ships none) |
 | `install.sh` | Copy into Lightroom's auto-load `Modules` folder |

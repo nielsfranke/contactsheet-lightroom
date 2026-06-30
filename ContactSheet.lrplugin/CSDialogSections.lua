@@ -13,34 +13,29 @@ local LrView = import 'LrView'
 local LrTasks = import 'LrTasks'
 local bind = LrView.bind
 local CSApi = require 'CSApi'
+local CSGalleryBrowser = require 'CSGalleryBrowser'
 
 local CSDialogSections = {}
 
 -- Flattens the gallery tree into indented popup items so sub-galleries read as a
--- hierarchy. ContactSheet returns a flat list with `parent_id`; we order it
--- depth-first under each parent.
+-- hierarchy. GET /api/galleries returns roots with a nested `children` array
+-- (not a flat parent_id list), so we recurse into `children`, sorting each level
+-- by name.
 local function buildGalleryItems(galleries)
-  local childrenOf = {}
-  for _, g in ipairs(galleries) do
-    local key = g.parent_id or false
-    childrenOf[key] = childrenOf[key] or {}
-    table.insert(childrenOf[key], g)
-  end
-  for _, list in pairs(childrenOf) do
-    table.sort(list, function(a, b) return (a.name or '') < (b.name or '') end)
-  end
-
   local items = {}
-  local function walk(parentKey, depth)
-    for _, g in ipairs(childrenOf[parentKey] or {}) do
+  local function walk(list, depth)
+    local level = {}
+    for _, g in ipairs(list or {}) do level[#level + 1] = g end
+    table.sort(level, function(a, b) return (a.name or '') < (b.name or '') end)
+    for _, g in ipairs(level) do
       items[#items + 1] = {
         title = string.rep('    ', depth) .. (g.name or '(untitled)'),
         value = g.id,
       }
-      walk(g.id, depth + 1)
+      if type(g.children) == 'table' then walk(g.children, depth + 1) end
     end
   end
-  walk(false, 0)
+  walk(galleries, 0)
   return items
 end
 
@@ -57,8 +52,9 @@ function CSDialogSections.sectionsForTopOfDialog(f, propertyTable)
         propertyTable.cs_statusMessage = err or 'Could not load galleries.'
         return
       end
-      propertyTable.cs_galleryItems = buildGalleryItems(galleries)
-      propertyTable.cs_statusMessage = ('Loaded %d galleries.'):format(#galleries)
+      local items = buildGalleryItems(galleries)
+      propertyTable.cs_galleryItems = items
+      propertyTable.cs_statusMessage = ('Loaded %d galleries.'):format(#items)
     end)
   end
 
@@ -92,7 +88,13 @@ function CSDialogSections.sectionsForTopOfDialog(f, propertyTable)
         spacing = f:label_spacing(),
         f:static_text { title = '', width = LrView.share 'cs_label' },
         f:push_button { title = 'Load galleries', action = loadGalleries },
-        f:static_text { title = bind 'cs_statusMessage', fill_horizontal = 1, width_in_chars = 28 },
+        f:push_button {
+          title = 'Browse with covers…',
+          action = function()
+            LrTasks.startAsyncTask(function() CSGalleryBrowser.browse(propertyTable) end)
+          end,
+        },
+        f:static_text { title = bind 'cs_statusMessage', fill_horizontal = 1, width_in_chars = 22 },
       },
 
       f:separator { fill_horizontal = 1 },
