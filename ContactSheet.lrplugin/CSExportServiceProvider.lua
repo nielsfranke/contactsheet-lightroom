@@ -33,10 +33,7 @@ provider.exportPresetFields = {
   { key = 'cs_instanceUrl', default = '' },
   { key = 'cs_token',       default = '' },
   { key = 'cs_galleryId',   default = '' },
-  { key = 'cs_galleryName',  default = '' },
-  { key = 'cs_createNew',   default = false },
-  { key = 'cs_newName',     default = '' },
-  { key = 'cs_newMode',     default = 'presentation' },
+  { key = 'cs_galleryName', default = '' },
 }
 
 provider.sectionsForTopOfDialog = CSDialogSections.sectionsForTopOfDialog
@@ -56,23 +53,12 @@ function provider.processRenderedPhotos(functionContext, exportContext)
     return
   end
 
-  -- Resolve the destination gallery: either an existing pick or a new one.
+  -- The destination is chosen (and any new gallery created) in the picker modal
+  -- before export, so by here we just need a gallery id.
   local galleryId = settings.cs_galleryId
-  if settings.cs_createNew then
-    if not settings.cs_newName or settings.cs_newName == '' then
-      LrDialogs.message('ContactSheet', 'Enter a name for the new gallery.', 'critical')
-      return
-    end
-    local gallery, err = CSApi.createGallery(instanceUrl, token, settings.cs_newName, settings.cs_newMode)
-    if not gallery then
-      LrDialogs.message('ContactSheet', 'Could not create the gallery: ' .. (err or 'unknown error'), 'critical')
-      return
-    end
-    galleryId = gallery.id
-  end
-
   if not galleryId or galleryId == '' then
-    LrDialogs.message('ContactSheet', 'Pick a destination gallery (or create one).', 'critical')
+    LrDialogs.message('ContactSheet',
+      'Choose a destination gallery first (Choose or create gallery…).', 'critical')
     return
   end
 

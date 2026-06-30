@@ -40,6 +40,11 @@ local CSGalleryBrowser = {}
 -- Lightroom session; the OS reclaims the temp dir.
 local coverCache = {}
 
+-- `f:picture.value` is static (not data-bound), so we can't swap one preview
+-- image on selection. Instead we pre-fetch every cover and stack all pictures in
+-- an overlapping view, toggling `visible` — so cap the up-front fetch.
+local MAX_COVERS = 300
+
 local function normalizeBase(url)
   return (url or ''):gsub('%s+', ''):gsub('/+$', '')
 end
@@ -61,19 +66,6 @@ local function flatten(galleries)
   end
   walk(galleries, 0)
   return out
-end
-
--- Indented popup items, so selecting via the browser also repopulates the
--- dropdown in the main dialog (keeps the two pickers consistent).
-local function buildPopupItems(rows)
-  local items = {}
-  for _, row in ipairs(rows) do
-    items[#items + 1] = {
-      title = string.rep('    ', row.depth) .. (row.gallery.name or '(untitled)'),
-      value = row.gallery.id,
-    }
-  end
-  return items
 end
 
 -- Downloads a gallery's cover thumbnail to a temp file; returns the path or nil.
@@ -109,9 +101,9 @@ local function fetchCover(base, token, g)
   return path
 end
 
--- Opens the picker. On "Select", writes cs_galleryId / cs_galleryName into
--- propertyTable, clears cs_createNew, and refreshes cs_galleryItems so the main
--- dialog's dropdown mirrors the choice. Must run inside an async task.
+-- Opens the picker/creator. On "Select", writes cs_galleryId / cs_galleryName
+-- into propertyTable. The "Create" button creates a gallery (or a sub-gallery of
+-- the selection) and refreshes the list in place. Must run inside an async task.
 function CSGalleryBrowser.browse(propertyTable)
   local base = normalizeBase(propertyTable.cs_instanceUrl)
   local token = propertyTable.cs_token or ''
@@ -131,25 +123,49 @@ function CSGalleryBrowser.browse(propertyTable)
     return
   end
 
-  local rows = flatten(galleries)
-
-  -- Pre-build list items + lookups (no network here — covers load lazily).
+  -- Shared model, refilled in place by rebuildModel so the binding closures below
+  -- (which capture these tables) see updates after a gallery is created. allItems /
+  -- galleryById / metaById keep their identity; currentRows is reassigned.
   local allItems, galleryById, metaById = {}, {}, {}
-  for _, row in ipairs(rows) do
-    local g = row.gallery
-    local count = g.image_count or 0
-    local suffix = count == 0 and '   ›' or ('   (%d)'):format(count)
-    allItems[#allItems + 1] = {
-      title = string.rep('      ', row.depth) .. (g.name or '(untitled)') .. suffix,
-      value = g.id,
-      nameLower = (g.name or ''):lower(),
-    }
-    galleryById[g.id] = g
-    metaById[g.id] = {
-      name = g.name or '(untitled)',
-      count = count,
-      hasCover = g.cover_image_url ~= nil and g.cover_image_url ~= '',
-    }
+  local currentRows = {}
+
+  local function rebuildModel(gals)
+    currentRows = flatten(gals)
+    for k in pairs(allItems) do allItems[k] = nil end
+    for k in pairs(galleryById) do galleryById[k] = nil end
+    for k in pairs(metaById) do metaById[k] = nil end
+    for _, row in ipairs(currentRows) do
+      local g = row.gallery
+      local count = g.image_count or 0
+      local suffix = count == 0 and '   ›' or ('   (%d)'):format(count)
+      allItems[#allItems + 1] = {
+        title = string.rep('      ', row.depth) .. (g.name or '(untitled)') .. suffix,
+        value = g.id,
+        nameLower = (g.name or ''):lower(),
+      }
+      galleryById[g.id] = g
+      metaById[g.id] = {
+        name = g.name or '(untitled)',
+        count = count,
+        hasCover = g.cover_image_url ~= nil and g.cover_image_url ~= '',
+      }
+    end
+  end
+  rebuildModel(galleries)
+
+  -- Pre-fetch covers (bounded) so the preview pictures can be built statically;
+  -- f:picture.value can't be re-bound on selection. We're already in an async task.
+  local coverById = {}
+  do
+    local n = 0
+    for _, row in ipairs(currentRows) do
+      if n >= MAX_COVERS then break end
+      local g = row.gallery
+      if g.cover_image_url and g.cover_image_url ~= '' then
+        local p = fetchCover(base, token, g)
+        if p then coverById[g.id] = p; n = n + 1 end
+      end
+    end
   end
 
   -- Live name filter for the list's bound `items`.
@@ -179,6 +195,14 @@ function CSGalleryBrowser.browse(propertyTable)
     return m.name .. detail .. (m.hasCover and '' or '\n(no preview image)')
   end
 
+  -- Label for the "create as sub-gallery" checkbox, reflecting the selected parent.
+  local function subLabel(sel)
+    local id = selectedId(sel)
+    local m = id and id ~= '' and metaById[id]
+    if not m then return 'Create as a sub-gallery (select a parent above first)' end
+    return 'Create inside “' .. m.name .. '” (as a sub-gallery)'
+  end
+
   LrFunctionContext.callWithContext('CSGalleryBrowser.browse', function(context)
     local f = LrView.osFactory()
     local bind = LrView.bind
@@ -186,24 +210,69 @@ function CSGalleryBrowser.browse(propertyTable)
     local preId = propertyTable.cs_galleryId or ''
     props.selected = preId ~= '' and { preId } or {} -- simple_list value is a table
     props.filter = ''
-    props.previewPath = ''
+    props.revision = 0 -- bumped to force the list to re-read items after a create
+    props.newName = ''
+    props.newMode = 'presentation'
+    props.asSub = false
 
-    -- Lazily fetch only the selected gallery's cover (no bulk download).
-    local function loadPreview(sel)
-      local id = selectedId(sel)
-      local g = id and id ~= '' and galleryById[id]
-      if not g then props.previewPath = ''; return end
+    -- Create a gallery (or sub-gallery of the selection) and refresh the list.
+    local function createGalleryAction()
       LrTasks.startAsyncTask(function()
-        props.previewPath = fetchCover(base, token, g) or ''
+        local name = (props.newName or ''):gsub('^%s+', ''):gsub('%s+$', '')
+        if name == '' then
+          LrDialogs.message('ContactSheet', 'Enter a name for the new gallery.', 'warning')
+          return
+        end
+        local parentId
+        if props.asSub then
+          parentId = selectedId(props.selected)
+          if not parentId or parentId == '' then
+            LrDialogs.message('ContactSheet',
+              'Select a parent gallery first, or uncheck the sub-gallery option.', 'warning')
+            return
+          end
+        end
+        local g, cerr = CSApi.createGallery(
+          propertyTable.cs_instanceUrl, token, name, props.newMode, parentId)
+        if not g then
+          LrDialogs.message('ContactSheet',
+            'Could not create the gallery: ' .. (cerr or 'unknown error'), 'critical')
+          return
+        end
+        rebuildModel(CSApi.listGalleries(propertyTable.cs_instanceUrl, token) or {})
+        props.newName = ''
+        props.asSub = false
+        props.selected = { g.id }                 -- auto-select the new gallery
+        props.revision = (props.revision or 0) + 1 -- force list refresh
       end)
     end
-    props:addObserver('selected', function(_, _, newValue) loadPreview(newValue) end)
-    loadPreview(props.selected) -- prime if a gallery was preselected
+
+    -- Preview pane: every cover stacked in an overlapping view, only the selected
+    -- one made visible (f:picture.value is static, so we can't swap a single one).
+    local previewArgs = { place = 'overlapping', fill_horizontal = 1, fill_vertical = 1 }
+    previewArgs[#previewArgs + 1] = f:static_text {
+      title = 'No preview image',
+      visible = bind {
+        key = 'selected',
+        transform = function(v)
+          local id = selectedId(v); return not (id and id ~= '' and coverById[id])
+        end,
+      },
+    }
+    for id, path in pairs(coverById) do
+      previewArgs[#previewArgs + 1] = f:picture {
+        value = path,
+        frame_width = 1,
+        visible = bind { key = 'selected', transform = function(v) return selectedId(v) == id end },
+      }
+    end
+    local previewView = f:view(previewArgs)
 
     local contents = f:column {
       bind_to_object = props,
       spacing = f:control_spacing(),
-      fill = 1,
+      fill_horizontal = 1,
+      fill_vertical = 1,
 
       f:row {
         fill_horizontal = 1,
@@ -219,34 +288,72 @@ function CSGalleryBrowser.browse(propertyTable)
       },
 
       f:row {
-        fill = 1,
+        fill_horizontal = 1,
+        fill_vertical = 1,
         spacing = f:control_spacing(),
 
         f:simple_list {
-          items = bind { key = 'filter', transform = function(v) return filterItems(v) end },
+          items = bind {
+            keys = { { key = 'filter' }, { key = 'revision' } },
+            operation = function(_, values, _) return filterItems(values.filter) end,
+          },
           value = bind 'selected',
           allows_multiple_selection = false,
           width = 300,
-          height = 440,
+          height = 300,
           fill_vertical = 1,
         },
 
         f:column {
-          fill = 1,
+          fill_horizontal = 1,
+          fill_vertical = 1,
           place_horizontal = 0.5,
           spacing = f:control_spacing(),
-          f:picture { value = bind 'previewPath', frame_width = 1 },
+          previewView,
           f:static_text {
             title = bind { key = 'selected', transform = function(v) return previewLabel(v) end },
+            fill_horizontal = 1,
             width_in_chars = 30,
             height_in_lines = 2,
+          },
+        },
+      },
+
+      f:separator { fill_horizontal = 1 },
+
+      f:row {
+        spacing = f:label_spacing(),
+        f:static_text { title = 'New' },
+        f:edit_field {
+          value = bind 'newName',
+          width_in_chars = 16,
+          placeholder_string = 'New gallery name',
+        },
+        f:popup_menu {
+          value = bind 'newMode',
+          items = {
+            { title = 'Showcase', value = 'presentation' },
+            { title = 'Review', value = 'collaboration' },
+          },
+        },
+        f:push_button { title = 'Create', action = createGalleryAction },
+      },
+
+      f:row {
+        spacing = f:label_spacing(),
+        f:checkbox {
+          title = bind { key = 'selected', transform = function(v) return subLabel(v) end },
+          value = bind 'asSub',
+          enabled = bind {
+            key = 'selected',
+            transform = function(v) local id = selectedId(v); return id ~= nil and id ~= '' end,
           },
         },
       },
     }
 
     local result = LrDialogs.presentModalDialog {
-      title = 'Choose a ContactSheet gallery',
+      title = 'Choose or create a ContactSheet gallery',
       contents = contents,
       actionVerb = 'Select',
       resizable = true,
@@ -254,9 +361,7 @@ function CSGalleryBrowser.browse(propertyTable)
 
     local chosen = selectedId(props.selected)
     if result == 'ok' and chosen and chosen ~= '' then
-      propertyTable.cs_galleryItems = buildPopupItems(rows)
       propertyTable.cs_galleryId = chosen
-      propertyTable.cs_createNew = false
       local m = metaById[chosen]
       if m then
         propertyTable.cs_galleryName = m.name

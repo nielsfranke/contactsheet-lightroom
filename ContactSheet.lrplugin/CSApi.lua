@@ -61,10 +61,13 @@ function CSApi.listGalleries(instanceUrl, token)
 end
 
 -- Creates a gallery; mode is 'presentation' (Showcase) or 'collaboration' (Review).
+-- Pass parentId to create a sub-gallery under it (nil → top-level). Sub-galleries
+-- inherit their parent's mode server-side regardless of `mode`.
 -- Returns the created gallery {id, name, ...} or nil,err.
-function CSApi.createGallery(instanceUrl, token, name, mode)
+function CSApi.createGallery(instanceUrl, token, name, mode, parentId)
   local url = normalizeBase(instanceUrl) .. '/api/galleries'
-  local payload = JSON.encode { name = name, mode = mode or 'presentation' }
+  -- parent_id = nil simply drops the key (Lua omits nil table values on encode).
+  local payload = JSON.encode { name = name, mode = mode or 'presentation', parent_id = parentId }
   local headers = authHeaders(token)
   headers[#headers + 1] = { field = 'Content-Type', value = 'application/json' }
   local body, respHeaders = LrHttp.post(url, payload, headers)

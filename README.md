@@ -18,11 +18,10 @@ Windows from the same code** and needs no compiler or notarisation.
 - **Export to a gallery** from File > Export (or as a Publish Service), with the full
   Lightroom render pipeline (format, size, sharpening, metadata, watermark) under
   your control.
-- **Pick a destination gallery** from a hierarchy-aware dropdown (sub-galleries are
-  indented), or **Browse with covers…** — a searchable, resizable picker (filter by
-  name) with a large cover preview of the selected gallery.
-- **Create a gallery on the fly** — tick *Create a new gallery*, type a name, choose
-  the mode (**Showcase** or **Review**).
+- **Choose or create a gallery** in one place — *Choose or create gallery…* opens a
+  searchable, resizable picker: filter by name, browse the gallery hierarchy
+  (sub-galleries indented) with a cover preview, and **create a gallery or
+  sub-gallery** (name + **Showcase**/**Review** mode) without leaving the dialog.
 - Upload progress, cancellation, and a clear summary of any photos that failed.
 
 ## Requirements
@@ -49,8 +48,9 @@ Windows from the same code** and needs no compiler or notarisation.
    *Export To* target (top of the dialog). In the **ContactSheet** panel:
    - **Instance URL** — e.g. `https://photos.example.com`.
    - **API token** — paste the `cs_pat_…`.
-   - Click **Load galleries** for the dropdown, or **Browse with covers…** for a
-     thumbnail picker — pick a destination (or tick **Create a new gallery**).
+   - Click **Choose or create gallery…** — search/pick an existing gallery, or
+     create a new gallery or sub-gallery. The chosen **Destination** is shown in the
+     panel.
 3. Set the usual **File Settings / Image Sizing** below, then **Export**.
 
 You can save this as an Export preset, or add it as a **Publish Service** for repeat
@@ -71,8 +71,8 @@ publish service.
 |---|---|
 | `ContactSheet.lrplugin/Info.lua` | Plugin manifest (registers the Export Service Provider) |
 | `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` upload loop |
-| `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, gallery picker, create) |
-| `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable gallery picker — filtered list + lazy cover preview |
+| `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, destination + open picker) |
+| `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable picker/creator — filtered list, cover preview, create gallery/sub-gallery |
 | `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload) |
 | `ContactSheet.lrplugin/JSON.lua` | Minimal JSON encode/decode (the SDK ships none) |
 | `install.sh` | Copy into Lightroom's auto-load `Modules` folder |
