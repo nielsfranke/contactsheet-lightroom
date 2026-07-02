@@ -101,9 +101,11 @@ the gallery was made:
   5. A summary shows how many photos were updated.
 
   Matching is by **filename**, ignoring the extension and case (so `IMG_1234.jpg` in
-  ContactSheet matches `IMG_1234.CR3` in your catalog). If the same base filename
-  appears on more than one photo — on either side — it's skipped rather than guessed, so
-  give matching photos unique names for a clean result.
+  ContactSheet matches `IMG_1234.CR3` in your catalog). Accents and umlauts are matched
+  robustly too — names that differ only by Unicode form (macOS stores `Grüße` decomposed,
+  ContactSheet composed) still match. If the same base filename appears on more than one
+  photo — on either side — it's skipped rather than guessed, so give matching photos
+  unique names for a clean result.
 
 ## How it works
 
