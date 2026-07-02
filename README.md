@@ -77,6 +77,34 @@ Maintainers: `./release.sh` packages the current `Info.lua` version into
 You can save this as an Export preset, or add it as a **Publish Service** for repeat
 use.
 
+## Reading client picks back into Lightroom
+
+Once your client has flagged/rated photos in ContactSheet, pull those picks back into
+your catalog: **color flag → Lightroom color label**, **star rating → Lightroom
+rating**. It's non-destructive — a photo is only touched where the client set a value,
+and your own labels/ratings are never cleared. Your token needs **`galleries:read` +
+`images:read`** (the *Read client picks* permission).
+
+There are two commands under *Library → Plug-in Extras* — pick the one that matches how
+the gallery was made:
+
+- **Sync client picks from ContactSheet** — for galleries you **published** via the
+  Publish Service. Photos are matched exactly by the ID stored when they were published.
+  Just run it; it syncs every published collection.
+
+- **Import client picks from a gallery…** — for galleries made with plain **Export**
+  (or created on the web), which have no publish mapping. Steps:
+  1. In the Library grid, **select the photos** you want to update (or select all).
+  2. Run *Library → Plug-in Extras → **Import client picks from a gallery…***
+  3. First time only: enter your **Instance URL** and **token**.
+  4. **Pick the gallery** in the list and click *Select*.
+  5. A summary shows how many photos were updated.
+
+  Matching is by **filename**, ignoring the extension and case (so `IMG_1234.jpg` in
+  ContactSheet matches `IMG_1234.CR3` in your catalog). If the same base filename
+  appears on more than one photo — on either side — it's skipped rather than guessed, so
+  give matching photos unique names for a clean result.
+
 ## How it works
 
 Lightroom renders the selected photos to temporary files using your export settings,
