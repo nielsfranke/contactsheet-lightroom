@@ -63,8 +63,8 @@ Maintainers: `./release.sh` packages the current `Info.lua` version into
 
 1. **In ContactSheet** (admin): *Settings → API tokens → Create token*. Grant
    `galleries:read`, `galleries:write` and `images:write` (add `images:read` if you
-   want to read client picks back into Lightroom), and copy the `cs_pat_…` secret
-   (shown once).
+   want to read client picks back into Lightroom — both readback commands need
+   `galleries:read` + `images:read`), and copy the `cs_pat_…` secret (shown once).
 2. **In Lightroom**: select photos → *File > Export* → choose **ContactSheet** as the
    *Export To* target (top of the dialog). In the **ContactSheet** panel:
    - **Instance URL** — e.g. `https://photos.example.com`.

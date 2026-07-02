@@ -68,7 +68,8 @@ local function resolveConnection(catalog)
         f:static_text { title = 'API token', alignment = 'right', width = LrView.share 'cs_l' },
         f:password_field { value = bind 'token', width_in_chars = 32, placeholder_string = 'cs_pat_…' },
       },
-      f:static_text { title = 'Needs the “Read client picks” (images:read) permission.',
+      f:static_text {
+        title = 'Token needs “Read galleries” (galleries:read) + “Read client picks” (images:read).',
         size = 'small' },
     }
     local r = LrDialogs.presentModalDialog {
