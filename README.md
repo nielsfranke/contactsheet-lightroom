@@ -25,11 +25,17 @@ Windows from the same code** and needs no compiler or notarisation.
   searchable picker: gallery names in a hierarchy (sub-galleries indented), a live
   **name filter**, and **create a gallery or sub-gallery** (name + **Showcase**/
   **Review** mode) without leaving the dialog.
-- **Read client picks back** — *Library > Plug-in Extras > Sync client picks from
-  ContactSheet* pulls each published photo's ContactSheet **color flag → Lightroom
-  color label** and **star rating → Lightroom rating** (matched by published photo).
-  Non-destructive: only sets where ContactSheet has a value. Needs a token with the
-  `images:read` scope.
+- **Read client picks back** — pull each photo's ContactSheet **color flag → Lightroom
+  color label** and **star rating → Lightroom rating**. Non-destructive: only sets where
+  ContactSheet has a value. Needs a token with the `images:read` scope. Two commands under
+  *Library > Plug-in Extras*:
+  - **Sync client picks from ContactSheet** — for **published** collections; matched
+    exactly by the remote id stored at publish time.
+  - **Import client picks from a gallery…** — for galleries made with the plain
+    **Export** provider (or on the web), which have no publish mapping. Pick any gallery
+    and it matches its picks to your **current Library selection by filename** (basename,
+    ignoring the extension, so `IMG_1234.jpg` ↔ `IMG_1234.CR3`). Ambiguous names — the
+    same basename on more than one photo, on either side — are skipped, never guessed.
 - Upload progress, cancellation, and a clear summary of any photos that failed.
 
 ## Requirements
@@ -87,7 +93,9 @@ publish service.
 | `ContactSheet.lrplugin/Info.lua` | Plugin manifest (registers the Export Service Provider) |
 | `ContactSheet.lrplugin/CSExportServiceProvider.lua` | Provider: render settings + `processRenderedPhotos` (export + publish upload loop) |
 | `ContactSheet.lrplugin/CSPublishSupport.lua` | Publish Service callbacks (collection↔gallery, republish, delete) |
-| `ContactSheet.lrplugin/CSSyncPicks.lua` | Plug-in Extras action: read client picks (flags/ratings) into the catalog |
+| `ContactSheet.lrplugin/CSSyncPicks.lua` | Plug-in Extras action: read published-collection picks into the catalog (matched by remote id) |
+| `ContactSheet.lrplugin/CSImportPicks.lua` | Plug-in Extras action: import any gallery's picks onto the current selection (matched by filename) |
+| `ContactSheet.lrplugin/CSApplyPicks.lua` | Shared flag/rating apply rule + filename match key (used by both readback commands) |
 | `ContactSheet.lrplugin/CSDialogSections.lua` | The ContactSheet settings panel (URL, token, destination + open picker) |
 | `ContactSheet.lrplugin/CSGalleryBrowser.lua` | Searchable picker/creator — filtered name list, create gallery/sub-gallery |
 | `ContactSheet.lrplugin/CSApi.lua` | REST client (list / create galleries, upload, delete image) |

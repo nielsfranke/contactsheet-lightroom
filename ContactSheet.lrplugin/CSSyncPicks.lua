@@ -20,9 +20,7 @@ local LrDialogs = import 'LrDialogs'
 local LrTasks = import 'LrTasks'
 
 local CSApi = require 'CSApi'
-
--- ContactSheet color flags map 1:1 onto Lightroom color labels (CS has no purple).
-local FLAG_TO_LABEL = { red = 'red', yellow = 'yellow', green = 'green', blue = 'blue' }
+local CSApplyPicks = require 'CSApplyPicks'
 
 LrTasks.startAsyncTask(function()
   local catalog = LrApplication.activeCatalog()
@@ -63,17 +61,8 @@ LrTasks.startAsyncTask(function()
             for _, pubPhoto in ipairs(collection:getPublishedPhotos()) do
               local imageId = pubPhoto:getRemoteId()
               local pick = imageId and picks[imageId]
-              if pick then
-                local label = pick.color_flag and FLAG_TO_LABEL[pick.color_flag]
-                local rating = tonumber(pick.rating) or 0
-                if label or rating > 0 then
-                  local photo = pubPhoto:getPhoto()
-                  if label then photo:setRawMetadata('colorNameForLabel', label) end
-                  if rating > 0 then photo:setRawMetadata('rating', rating) end
-                  applied = applied + 1
-                else
-                  unchanged = unchanged + 1
-                end
+              if pick and CSApplyPicks.apply(pubPhoto:getPhoto(), pick) then
+                applied = applied + 1
               else
                 unchanged = unchanged + 1
               end

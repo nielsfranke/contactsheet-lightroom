@@ -23,12 +23,18 @@ return {
   },
 
   -- Library > Plug-in Extras: read client picks (flags/ratings) back into the catalog.
+  -- Sync = publish-service collections (matched by remote id). Import = any gallery,
+  -- incl. plain-Export/web ones (matched by filename against the current selection).
   LrLibraryMenuItems = {
     {
       title = 'Sync client picks from ContactSheet',
       file = 'CSSyncPicks.lua',
     },
+    {
+      title = 'Import client picks from a gallery…',
+      file = 'CSImportPicks.lua',
+    },
   },
 
-  VERSION = { major = 0, minor = 8, revision = 0, build = 0 },
+  VERSION = { major = 0, minor = 9, revision = 0, build = 0 },
 }
