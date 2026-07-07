@@ -25,6 +25,12 @@ Windows from the same code** and needs no compiler or notarisation.
   searchable picker: gallery names in a hierarchy (sub-galleries indented), a live
   **name filter**, and **create a gallery or sub-gallery** (name + **Showcase**/
   **Review** mode) without leaving the dialog.
+- **Duplicate handling on re-export** (for Export) — an *If a photo exists* setting:
+  **Keep both** (uploads the new render renamed `_v2`, the default), **Replace**
+  (overwrites the existing photo in place — its client picks, comments and gallery
+  cover are kept), or **Skip**. Matches on filename in the destination gallery.
+  Requires a ContactSheet instance **≥ v1.6.6**; older servers just append as before.
+  (Publish has its own duplicate-free re-publish and ignores this setting.)
 - **Read client picks back** — pull each photo's ContactSheet **color flag → Lightroom
   color label** and **star rating → Lightroom rating**. Non-destructive: only sets where
   ContactSheet has a value. Needs a token with the `images:read` scope. Two commands under

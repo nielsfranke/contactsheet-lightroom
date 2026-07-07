@@ -21,6 +21,7 @@
 
 local LrDialogs = import 'LrDialogs'
 local LrFileUtils = import 'LrFileUtils'
+local LrPathUtils = import 'LrPathUtils'
 
 local CSApi = require 'CSApi'
 local CSDialogSections = require 'CSDialogSections'
@@ -43,6 +44,8 @@ provider.exportPresetFields = {
   { key = 'cs_token',       default = '' },
   { key = 'cs_galleryId',   default = '' },
   { key = 'cs_galleryName', default = '' },
+  -- Export-path duplicate handling: 'keep_both' (rename _v2) | 'replace' | 'skip'.
+  { key = 'cs_onDuplicate', default = 'keep_both' },
 }
 
 provider.sectionsForTopOfDialog = CSDialogSections.sectionsForTopOfDialog
@@ -114,6 +117,30 @@ function provider.processRenderedPhotos(functionContext, exportContext)
       .. (nPhotos == 1 and ' photo to ContactSheet' or ' photos to ContactSheet'),
   }
 
+  -- Export path only: one pre-flight so a same-filename upload is resolved by the
+  -- user's choice (Keep both / Replace / Skip) without touching non-colliding files.
+  -- Filenames come from each rendition's destinationPath (the exact leaf we upload).
+  -- Publish keeps its id-based dedup (delete-then-reupload above) and is exempt. Any
+  -- failure — enumeration quirk, or a pre-1.6.6 server with no check-duplicates
+  -- endpoint — leaves `collisions` empty → plain uploads (legacy append), so nothing
+  -- breaks against older instances.
+  local onDuplicate = settings.cs_onDuplicate or 'keep_both'
+  local collisions = {}
+  if not publishing then
+    local ok, names = pcall(function()
+      local list, seen = {}, {}
+      for _, r in exportContext.exportSession:renditions() do
+        local leaf = LrPathUtils.leafName(r.destinationPath)
+        if leaf and not seen[leaf] then seen[leaf] = true; list[#list + 1] = leaf end
+      end
+      return list
+    end)
+    if ok and names and #names > 0 then
+      local dups = CSApi.checkDuplicates(instanceUrl, token, galleryId, names)
+      if dups then for name in pairs(dups) do collisions[name] = true end end
+    end
+  end
+
   local failures = {}
   for _, rendition in exportContext:renditions { stopIfCanceled = true } do
     if progress:isCanceled() then break end
@@ -126,15 +153,26 @@ function provider.processRenderedPhotos(functionContext, exportContext)
         CSApi.deleteImage(instanceUrl, token, rendition.publishedPhotoId)
       end
 
-      local result, err = CSApi.uploadFile(instanceUrl, token, galleryId, pathOrMessage)
-      if not result then
-        failures[#failures + 1] = (rendition.photo:getFormattedMetadata('fileName') or '?')
-          .. ': ' .. (err or 'upload failed')
-      elseif publishing and type(result) == 'string' then
-        rendition:recordPublishedPhotoId(result) -- the new ContactSheet image id
+      -- Resolve a same-filename collision for the Export path (publish is exempt).
+      local action, skipUpload = nil, false
+      if collisions[LrPathUtils.leafName(pathOrMessage)] then
+        if onDuplicate == 'skip' then skipUpload = true else action = onDuplicate end
       end
-      -- Discard the temp render regardless; ContactSheet now owns the copy.
-      LrFileUtils.delete(pathOrMessage)
+
+      if skipUpload then
+        -- Leave the existing photo untouched; just discard this render.
+        LrFileUtils.delete(pathOrMessage)
+      else
+        local result, err = CSApi.uploadFile(instanceUrl, token, galleryId, pathOrMessage, action)
+        if not result then
+          failures[#failures + 1] = (rendition.photo:getFormattedMetadata('fileName') or '?')
+            .. ': ' .. (err or 'upload failed')
+        elseif publishing and type(result) == 'string' then
+          rendition:recordPublishedPhotoId(result) -- the new ContactSheet image id
+        end
+        -- Discard the temp render regardless; ContactSheet now owns the copy.
+        LrFileUtils.delete(pathOrMessage)
+      end
     else
       failures[#failures + 1] = 'Render failed: ' .. tostring(pathOrMessage)
     end

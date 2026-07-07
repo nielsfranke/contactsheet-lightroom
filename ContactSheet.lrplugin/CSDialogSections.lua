@@ -70,6 +70,34 @@ function CSDialogSections.sectionsForTopOfDialog(f, propertyTable)
         },
       },
 
+      -- Export-path duplicate handling. Ignored by the Publish Service, which dedupes
+      -- via its per-photo remote-id mapping (delete-then-reupload). Requires a
+      -- ContactSheet instance ≥ v1.6.6; older servers fall back to appending.
+      f:row {
+        spacing = f:label_spacing(),
+        f:static_text { title = 'If a photo exists', alignment = 'right', width = LrView.share 'cs_label' },
+        f:popup_menu {
+          value = bind 'cs_onDuplicate',
+          items = {
+            { title = 'Keep both (rename _v2)', value = 'keep_both' },
+            { title = 'Replace existing', value = 'replace' },
+            { title = 'Skip', value = 'skip' },
+          },
+          fill_horizontal = 1,
+        },
+      },
+
+      f:row {
+        spacing = f:label_spacing(),
+        f:static_text { title = '', width = LrView.share 'cs_label' },
+        f:static_text {
+          title = 'Applies to File > Export. Matches on filename in the destination gallery.',
+          fill_horizontal = 1,
+          width_in_chars = 30,
+          size = 'small',
+        },
+      },
+
       f:row {
         spacing = f:label_spacing(),
         f:static_text { title = '', width = LrView.share 'cs_label' },

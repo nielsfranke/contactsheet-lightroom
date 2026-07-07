@@ -84,7 +84,13 @@ end
 -- on success, or nil,err. The id lets the publish service record the published
 -- photo (for re-publish / deletion). The upload endpoint returns a list of
 -- UploadResponse — we take the first entry's id.
-function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
+--
+-- `duplicateAction` (optional: 'replace' | 'keep_both' | 'skip') is attached as the
+-- server's `duplicate_actions` field, keyed by this file's name, so a same-name
+-- upload is resolved server-side. Pass nil for the default (silent append) — the
+-- Export path only sets it for filenames a pre-flight (CSApi.checkDuplicates)
+-- flagged as already present, so a non-colliding file is never renamed/skipped.
+function CSApi.uploadFile(instanceUrl, token, galleryId, filePath, duplicateAction)
   local url = normalizeBase(instanceUrl) .. '/api/galleries/' .. galleryId .. '/images'
   local fileName = LrPathUtils.leafName(filePath)
   local ext = (LrPathUtils.extension(filePath) or ''):lower()
@@ -96,6 +102,12 @@ function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
       contentType = MIME[ext] or 'application/octet-stream',
     },
   }
+  if duplicateAction then
+    content[#content + 1] = {
+      name = 'duplicate_actions',
+      value = JSON.encode { [fileName] = duplicateAction },
+    }
+  end
   local body, respHeaders = LrHttp.postMultipart(url, content, authHeaders(token))
   local status = statusOf(respHeaders)
   if status ~= 201 and status ~= 200 then return nil, httpErrorMessage(status) end
@@ -106,6 +118,25 @@ function CSApi.uploadFile(instanceUrl, token, galleryId, filePath)
   -- Uploaded fine but the id was unreadable — treat as success without an id so the
   -- export path (which ignores the id) still works; publish republish just can't dedupe.
   return true
+end
+
+-- Pre-flight for the Export path: which of `filenames` already exist (live) in the
+-- gallery. Returns a map basename → count (only colliding names appear), or nil,err.
+-- Needs an images:write token. Present on ContactSheet ≥ v1.6.6 — an older instance
+-- 404s, which the caller treats as "no info" and falls back to a plain upload.
+function CSApi.checkDuplicates(instanceUrl, token, galleryId, filenames)
+  local url = normalizeBase(instanceUrl) .. '/api/galleries/' .. galleryId .. '/images/check-duplicates'
+  local payload = JSON.encode { filenames = filenames }
+  local headers = authHeaders(token)
+  headers[#headers + 1] = { field = 'Content-Type', value = 'application/json' }
+  local body, respHeaders = LrHttp.post(url, payload, headers)
+  local status = statusOf(respHeaders)
+  if status ~= 200 then return nil, httpErrorMessage(status) end
+  local ok, parsed = pcall(JSON.decode, body)
+  if not ok or type(parsed) ~= 'table' or type(parsed.duplicates) ~= 'table' then
+    return nil, 'Could not parse the duplicate check.'
+  end
+  return parsed.duplicates
 end
 
 -- Reads client picks for a gallery (needs an images:read token). Returns a map

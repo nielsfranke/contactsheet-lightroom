@@ -145,16 +145,38 @@ local function encodeString(s)
   end) .. '"'
 end
 
--- Encodes a flat table (string keys → string/number/boolean) as a JSON object.
-function JSON.encode(t)
+-- A table is treated as a JSON array when its keys are exactly 1..n (contiguous
+-- integers); otherwise it's a JSON object. Returns (isArray, n).
+local function isArray(t)
+  local n = 0
+  for k in pairs(t) do
+    if type(k) ~= 'number' then return false end
+    n = n + 1
+  end
+  for i = 1, n do
+    if t[i] == nil then return false end
+  end
+  return true, n
+end
+
+-- Encodes a Lua value as JSON. Objects (string-keyed tables), arrays (1..n integer
+-- keys) and nested tables are all handled — the create-gallery body stays a flat
+-- object; the duplicate-check body carries a `filenames` array; `duplicate_actions`
+-- is a `{ name → action }` object. Values may be string/number/boolean/table.
+function JSON.encode(v)
+  local tv = type(v)
+  if tv == 'string' then return encodeString(v) end
+  if tv == 'number' or tv == 'boolean' then return tostring(v) end
+  if tv ~= 'table' then return encodeString(tostring(v)) end
+
+  local array, n = isArray(v)
   local parts = {}
-  for k, v in pairs(t) do
-    local tv = type(v)
-    local val
-    if tv == 'string' then val = encodeString(v)
-    elseif tv == 'number' or tv == 'boolean' then val = tostring(v)
-    else val = encodeString(tostring(v)) end
-    parts[#parts + 1] = encodeString(tostring(k)) .. ':' .. val
+  if array then
+    for i = 1, n do parts[i] = JSON.encode(v[i]) end
+    return '[' .. table.concat(parts, ',') .. ']'
+  end
+  for k, val in pairs(v) do
+    parts[#parts + 1] = encodeString(tostring(k)) .. ':' .. JSON.encode(val)
   end
   return '{' .. table.concat(parts, ',') .. '}'
 end
